@@ -1,0 +1,55 @@
+version: '3.3'
+
+services:
+  mysql:
+    container_name: blogspa_mysql
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    ports:
+      - '4306:3306'
+    volumes:
+      - ./mysql:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  php:
+    container_name: blogspa_php
+    build:
+      context: ./php
+      args:
+        TZ: ${TZ}
+        BLOG_SPA_API_DOMAIN: ${BLOG_SPA_API_DOMAIN}
+        BLOG_SPA_API_APP_ROOT_DIR: ${BLOG_SPA_API_APP_ROOT_DIR}
+    environment:
+      - TZ=${TZ}
+      - BLOG_SPA_API_DOMAIN=${BLOG_SPA_API_DOMAIN}
+      - BLOG_SPA_API_APP_ROOT_DIR=${BLOG_SPA_API_APP_ROOT_DIR}
+    volumes:
+      - ${BLOG_SPA_API_APP_PATH}:${BLOG_SPA_API_APP_ROOT_DIR}:cached
+    links:
+      - mysql:mysql_host
+
+  nginx:
+    container_name: blogspa_nginx
+    build:
+      context: ./nginx
+    restart: always
+    environment:
+      - TZ=${TZ}
+      - BLOG_SPA_API_DOMAIN=${BLOG_SPA_API_DOMAIN}
+      - BLOG_SPA_API_APP_ROOT_DIR=${BLOG_SPA_API_APP_ROOT_DIR}
+    ports:
+      - 8882:80
+    links:
+      - php:php_host
+    volumes:
+      - ${BLOG_SPA_API_APP_PATH}:${BLOG_SPA_API_APP_ROOT_DIR}:cached
+      - ./nginx/ssl:/etc/nginx/conf.d/ssl
+    command: |-
+      /bin/sh -c " \
+        envsubst '$$BLOG_SPA_API_DOMAIN $$BLOG_SPA_API_APP_ROOT_DIR' < /etc/nginx/conf.d/blog_spa_api.conf.template > /etc/nginx/conf.d/blog_spa_api.conf && \
+        nginx -g 'daemon off;'
+      "
